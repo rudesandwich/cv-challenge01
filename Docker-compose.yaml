@@ -1,57 +1,78 @@
+version: '3'
+
 services:
   frontend:
     build: ./frontend
     labels:
       - "traefik.http.routers.frontend.rule=Host('frontend.local')"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      depends_on:
-        - backend
-
-
+    depends_on:
+      - backend
+    networks:
+      - frontend-network
 
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql://postgres:password@db/mydatabase
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}
     labels:
       - "traefik.http.routers.backend.rule=Host('backend.local')"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     depends_on:
       - db
+    networks:
+      - backend-network
+      - frontend-network
 
   db:
     image: postgres:latest
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydatabase
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       retries: 5
+    networks:
+      - backend-network
 
   adminer:
-     image: adminer
-     restart: always
-     ports:
-       - "8080:8080"
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - backend-network
 
   reverse_proxy:
     image: traefik:v2.9
     command:
-      - "--api.insecure=true"
+      - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.tlschallenge=true"
+      - "--certificatesresolvers.le.acme.email=your_email@example.com"
+      - "--certificatesresolvers.le.acme.storage=/acme.json"
     ports:
       - "80:80"
-      - "8081:8081"
+      - "443:443"
+      - "8081:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./acme.json:/acme.json
+    networks:
+      - backend-network
+      - frontend-network
 
-  volumes:
-    db_data:
-   
+networks:
+  frontend-network:
+  backend-network:
+
+volumes:
+  db_data:
