@@ -29,6 +29,7 @@ jobs:
       - name: Run tests
         run: |
           cd backend
+          export PYTHONPATH=$PWD
           poetry run pytest
 
       - name: Log in to Docker Hub
@@ -62,4 +63,3 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/cv-challenge01-frontend:latest
-
