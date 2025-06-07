@@ -28,5 +28,10 @@ RUN chmod +x ./prestart.sh
 # Expose the port the app runs on
 EXPOSE 8000
 
+
+# Run tests
+RUN poetry run pytest
+
+
 # Run the prestart script and start the server
 CMD ["sh", "-c", "poetry run bash ./prestart.sh && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
