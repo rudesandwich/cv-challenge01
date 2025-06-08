@@ -1,37 +1,34 @@
-# Use Python 3.10 image as base
 FROM python:3.10
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Install curl and bash
+# Install system dependencies
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
-
-# Add Poetry to the PATH
 ENV PATH="/root/.local/bin:$PATH"
 
-# Copy the rest of the application code into the container
-COPY . /app
+# Copy only necessary files for dependency installation
+COPY pyproject.toml poetry.lock* ./
 
-# Install the dependencies using Poetry
-RUN poetry install
+# Install Python dependencies
+RUN poetry install --no-root
 
-# Make sure the prestart script is executable
+# Copy the rest of the code
+COPY . .
+
+# Set PYTHONPATH to include /app
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
+# Make prestart script executable
 RUN chmod +x ./prestart.sh
 
-# Expose the port the app runs on
-EXPOSE 8000
-
-
-# Run tests
+# Run tests with PYTHONPATH configured
 RUN poetry run pytest
 
+EXPOSE 8000
 
-# Run the prestart script and start the server
-CMD ["sh", "-c", "poetry run bash ./prestart.sh && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "poetry run ./prestart.sh && poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
