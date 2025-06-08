@@ -20,14 +20,14 @@ RUN poetry install --no-root
 # Copy the rest of the code
 COPY . .
 
-# Set PYTHONPATH to include /app
+# Make the app package importable
 ENV PYTHONPATH="/app:${PYTHONPATH}"
 
 # Make prestart script executable
 RUN chmod +x ./prestart.sh
 
 # Run tests with PYTHONPATH configured
-RUN poetry run pytest
+RUN PYTHONPATH=/app poetry run pytest
 
 EXPOSE 8000
 
