@@ -24,12 +24,12 @@ jobs:
       - name: Install dependencies
         run: |
           cd backend
-          poetry install
+          poetry install --no-interaction --no-ansi
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/backend" >> $GITHUB_ENV
 
       - name: Run tests
         run: |
           cd backend
-          export PYTHONPATH=$PWD
           poetry run pytest
 
       - name: Log in to Docker Hub
@@ -47,6 +47,7 @@ jobs:
 
   build-and-push-frontend:
     runs-on: ubuntu-latest
+    needs: test-and-build-backend
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
