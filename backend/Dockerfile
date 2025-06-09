@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.10-slim as builder
+FROM python:3.10-slim AS builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry - specific version for stability
+# Install specific Poetry version
 ENV POETRY_HOME=/opt/poetry \
     POETRY_VERSION=1.8.2
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
@@ -18,26 +18,26 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Configure Poetry
 RUN poetry config virtualenvs.create false
 
-# Copy only dependency files first for caching
+# Copy dependency files first
 WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies with retry logic
-RUN poetry install --no-interaction --no-ansi || \
-    (echo "First attempt failed, retrying..." && poetry install --no-interaction --no-ansi)
+# Install dependencies with retry
+RUN poetry install --no-interaction --no-ansi --no-root || \
+    (echo "First attempt failed, retrying..." && poetry install --no-interaction --no-ansi --no-root)
 
 # Stage 2: Runtime
 FROM python:3.10-slim
 WORKDIR /app
 
-# Copy installed packages from builder
+# Copy installed packages
 COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY . .
 
-# Verify critical files exist
+# Verify critical files
 RUN [ -f app/main.py ] || (echo "Error: main.py missing!" && exit 1)
 RUN [ -f prestart.sh ] || (echo "Error: prestart.sh missing!" && exit 1)
 RUN chmod +x prestart.sh
