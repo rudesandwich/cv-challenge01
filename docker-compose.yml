@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  frontend:
+    image: ${IMAGE_NAME}-frontend:latest
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+
+  backend:
+    image: ${IMAGE_NAME}-backend:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/mydb
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --providers.docker
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
