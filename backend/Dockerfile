@@ -1,42 +1,46 @@
-# Use Python 3.10 slim image for smaller size
-FROM python:3.10-slim
-
-# Set the working directory in the container
-WORKDIR /app
+# Stage 1: Builder
+FROM python:3.10-slim as builder
 
 # Install system dependencies
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    gcc \
-    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry (isolated from system Python)
-ENV POETRY_HOME=/opt/poetry
-ENV PATH="$POETRY_HOME/bin:$PATH"
+# Install Poetry - specific version for stability
+ENV POETRY_HOME=/opt/poetry \
+    POETRY_VERSION=1.8.2
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
+    cd /usr/local/bin && \
+    ln -s /opt/poetry/bin/poetry && \
     poetry --version
 
-# Copy only requirements files first for caching
+# Configure Poetry
+RUN poetry config virtualenvs.create false
+
+# Copy only dependency files first for caching
+WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 
-# Install project dependencies
-RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi --only main
+# Install dependencies with retry logic
+RUN poetry install --no-interaction --no-ansi || \
+    (echo "First attempt failed, retrying..." && poetry install --no-interaction --no-ansi)
 
-# Copy the rest of the application
+# Stage 2: Runtime
+FROM python:3.10-slim
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
 COPY . .
 
-# Make scripts executable
-RUN chmod +x ./prestart.sh
+# Verify critical files exist
+RUN [ -f app/main.py ] || (echo "Error: main.py missing!" && exit 1)
+RUN [ -f prestart.sh ] || (echo "Error: prestart.sh missing!" && exit 1)
+RUN chmod +x prestart.sh
 
-# Expose the port
 EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
-
-# Run the application
-CMD ["sh", "-c", "./prestart.sh && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["./prestart.sh"]
