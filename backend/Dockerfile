@@ -13,12 +13,12 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Stage 2: Serve the application with Nginx
-FROM nginx:alpine AS nginx
+#FROM nginx:alpine AS nginx
 
 # Copy the FastAPI application from the first stage
-COPY --from=build /app /usr/share/nginx/html
+#COPY --from=build /app /usr/share/nginx/html
 
 # Copy the Nginx configuration file
 #COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+#EXPOSE 80
