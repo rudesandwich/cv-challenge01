@@ -1,47 +1,24 @@
-# Stage 1: Builder
-FROM python:3.10-slim as builder
+# Stage 1: Build the FastAPI application
+FROM python:3.9-slim AS build
 
-COPY . .
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install specific Poetry version
-ENV POETRY_HOME=/opt/poetry \
-    POETRY_VERSION=1.8.2
-RUN curl -sSL https://install.python-poetry.org | python3 - && \
-    cd /usr/local/bin && \
-    ln -s /opt/poetry/bin/poetry && \
-    poetry --version
-
-# Configure Poetry
-RUN poetry config virtualenvs.create false
-
-# Copy dependency files first
-WORKDIR /app
-COPY pyproject.toml poetry.lock ./
-
-# Install dependencies with retry
-RUN poetry install --no-interaction --no-ansi --no-root || \
-    (echo "First attempt failed, retrying..." && poetry install --no-interaction --no-ansi --no-root)
-
-# Stage 2: Runtime
-FROM python:3.10-slim
 WORKDIR /app
 
-# Copy installed packages
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
-
-# Verify critical files
-RUN [ -f app/main.py ] || (echo "Error: main.py missing!" && exit 1)
-RUN [ -f prestart.sh ] || (echo "Error: prestart.sh missing!" && exit 1)
-RUN chmod +x prestart.sh
 
 EXPOSE 8000
-CMD ["./prestart.sh"]
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Stage 2: Serve the application with Nginx
+FROM nginx:alpine AS nginx
+
+# Copy the FastAPI application from the first stage
+COPY --from=build /app /usr/share/nginx/html
+
+# Copy the Nginx configuration file
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
